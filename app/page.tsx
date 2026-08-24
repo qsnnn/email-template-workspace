@@ -20,10 +20,36 @@ type ImageTarget = "avatar" | "logo" | "actions";
 type ImageTransform = { x: number; y: number; scale: number };
 type ImageTransforms = Record<ImageTarget, ImageTransform>;
 
+type LabelField = "orderId" | "reason" | "isa" | "date";
+type LabelData = Record<LabelField, string>;
+type LabelPosition = { x: number; y: number; size: number };
+type LabelPositions = Record<LabelField, LabelPosition>;
+
 const defaultTransforms: ImageTransforms = {
   avatar: { x: 0, y: 0, scale: 100 },
   logo: { x: 0, y: 0, scale: 100 },
   actions: { x: 0, y: 0, scale: 100 },
+};
+
+const initialLabelData: LabelData = {
+  orderId: "Order ID 6836970794",
+  reason: "two ISAs were deleted",
+  isa: "132244007992",
+  date: "2026/05/14 07:00 PDT.",
+};
+
+const initialLabelPositions: LabelPositions = {
+  orderId: { x: 23.4, y: 3.1, size: 27 },
+  reason: { x: 21.8, y: 46.3, size: 21 },
+  isa: { x: 11.1, y: 55.2, size: 21 },
+  date: { x: 41.6, y: 55.2, size: 21 },
+};
+
+const labelFieldNames: Record<LabelField, string> = {
+  orderId: "顶部 Order ID",
+  reason: "原因英文",
+  isa: "ISA 编号",
+  date: "日期和时间",
 };
 
 const initialEmail: EmailData = {
@@ -90,7 +116,161 @@ function EditableText({
   );
 }
 
+function LabelEditor() {
+  const [background, setBackground] = useState("");
+  const [labels, setLabels] = useState<LabelData>(initialLabelData);
+  const [positions, setPositions] = useState<LabelPositions>(initialLabelPositions);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const cached = localStorage.getItem("image-label-editor-draft");
+    if (!cached) return;
+    try {
+      const draft = JSON.parse(cached);
+      setLabels({ ...initialLabelData, ...(draft.labels || {}) });
+      setPositions({ ...initialLabelPositions, ...(draft.positions || {}) });
+    } catch {
+      localStorage.removeItem("image-label-editor-draft");
+    }
+  }, []);
+
+  const updateLabel = (key: LabelField, value: string) => {
+    setLabels((current) => ({ ...current, [key]: value }));
+    setSaved(false);
+  };
+
+  const updatePosition = (key: LabelField, property: keyof LabelPosition, value: number) => {
+    setPositions((current) => ({
+      ...current,
+      [key]: { ...current[key], [property]: value },
+    }));
+    setSaved(false);
+  };
+
+  const uploadBackground = (file: File | undefined) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => setBackground(String(reader.result));
+    reader.readAsDataURL(file);
+  };
+
+  const saveLabelDraft = () => {
+    localStorage.setItem("image-label-editor-draft", JSON.stringify({ labels, positions }));
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 1800);
+  };
+
+  const resetLabels = () => {
+    if (!window.confirm("恢复标签文字和位置的默认设置？")) return;
+    setLabels(initialLabelData);
+    setPositions(initialLabelPositions);
+    localStorage.removeItem("image-label-editor-draft");
+  };
+
+  const downloadImage = () => {
+    if (!background) return;
+    const image = new window.Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      context.drawImage(image, 0, 0);
+      const scale = image.naturalWidth / 1600;
+      (Object.keys(labels) as LabelField[]).forEach((key) => {
+        const position = positions[key];
+        const x = (position.x / 100) * image.naturalWidth;
+        const y = (position.y / 100) * image.naturalHeight;
+        const fontSize = Math.max(10, Math.round(position.size * scale));
+        context.font = `500 ${fontSize}px Arial, sans-serif`;
+        context.textBaseline = "top";
+        const width = context.measureText(labels[key]).width;
+        const padding = Math.max(3, Math.round(4 * scale));
+        context.fillStyle = "#ffffff";
+        context.fillRect(x - padding, y - padding, width + padding * 2, fontSize * 1.35 + padding * 2);
+        context.fillStyle = "#30363d";
+        context.fillText(labels[key], x, y);
+      });
+      const link = document.createElement("a");
+      link.download = "edited-label.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    };
+    image.src = background;
+  };
+
+  return (
+    <div className="workspace label-workspace">
+      <aside className="editor-panel label-editor-panel">
+        <div className="panel-heading">
+          <span className="eyebrow">Image label editor</span>
+          <h1>修改图片文字</h1>
+          <p>上传底图后，只需修改下面四处文字；位置和字号可按图片微调。</p>
+        </div>
+
+        <label className="background-upload">
+          <span>{background ? "更换底图" : "上传底图"}</span>
+          <small>PNG、JPG 或 WebP</small>
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => uploadBackground(event.target.files?.[0])} />
+        </label>
+
+        <div className="label-field-list">
+          {(Object.keys(labels) as LabelField[]).map((key) => (
+            <section className="label-field-card" key={key}>
+              <label className="field">
+                <span>{labelFieldNames[key]}</span>
+                <input value={labels[key]} onChange={(event) => updateLabel(key, event.target.value)} />
+              </label>
+              <div className="label-adjustments">
+                <label><span>左右</span><input type="range" min="0" max="92" step="0.1" value={positions[key].x} onChange={(event) => updatePosition(key, "x", Number(event.target.value))} /></label>
+                <label><span>上下</span><input type="range" min="0" max="92" step="0.1" value={positions[key].y} onChange={(event) => updatePosition(key, "y", Number(event.target.value))} /></label>
+                <label><span>字号</span><input type="range" min="10" max="42" value={positions[key].size} onChange={(event) => updatePosition(key, "size", Number(event.target.value))} /></label>
+              </div>
+            </section>
+          ))}
+        </div>
+
+        <div className="label-actions">
+          <button className="button ghost" type="button" onClick={resetLabels}>恢复默认</button>
+          <button className="button ghost" type="button" onClick={saveLabelDraft}>{saved ? "已保存" : "保存设置"}</button>
+          <button className="button primary" type="button" disabled={!background} onClick={downloadImage}>下载图片</button>
+        </div>
+      </aside>
+
+      <section className="preview-area label-preview-area" aria-label="Editable image label preview">
+        <div className="preview-label">
+          <div><span className="live-dot" /> 标签预览</div>
+          <span>上传图片后可实时查看</span>
+        </div>
+        <div className={`label-canvas ${background ? "has-background" : ""}`}>
+          {background ? (
+            <>
+              <img src={background} alt="Uploaded label background" />
+              {(Object.keys(labels) as LabelField[]).map((key) => (
+                <span
+                  className="label-overlay"
+                  key={key}
+                  style={{ left: `${positions[key].x}%`, top: `${positions[key].y}%`, fontSize: `${positions[key].size}px` }}
+                >
+                  {labels[key]}
+                </span>
+              ))}
+            </>
+          ) : (
+            <div className="label-empty-state">
+              <b>先上传你的图片</b>
+              <span>上传后，四处可编辑文字会显示在图片上。</span>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function Home() {
+  const [activeTab, setActiveTab] = useState<"email" | "label">("email");
   const [email, setEmail] = useState<EmailData>(initialEmail);
   const [avatarImage, setAvatarImage] = useState("");
   const [logoImage, setLogoImage] = useState("");
@@ -229,15 +409,21 @@ export default function Home() {
             <span>Editable message workspace</span>
           </div>
         </div>
-        <div className="top-actions">
-          <span className={`save-status ${saved ? "visible" : ""}`}>Draft saved</span>
-          <button className="button ghost" type="button" onClick={reset}>↻ Reset</button>
-          <button className="button ghost" type="button" onClick={() => window.print()}>⌁ Print / PDF</button>
-          <button className="button primary" type="button" onClick={saveDraft}>Save draft</button>
-        </div>
+        <nav className="workspace-tabs" aria-label="Editor sections">
+          <button className={activeTab === "email" ? "active" : ""} type="button" onClick={() => setActiveTab("email")}>邮件编辑</button>
+          <button className={activeTab === "label" ? "active" : ""} type="button" onClick={() => setActiveTab("label")}>标签编辑</button>
+        </nav>
+        {activeTab === "email" ? (
+          <div className="top-actions">
+            <span className={`save-status ${saved ? "visible" : ""}`}>Draft saved</span>
+            <button className="button ghost" type="button" onClick={reset}>↻ Reset</button>
+            <button className="button ghost" type="button" onClick={() => window.print()}>⌁ Print / PDF</button>
+            <button className="button primary" type="button" onClick={saveDraft}>Save draft</button>
+          </div>
+        ) : <div className="top-actions"><button className="button ghost" type="button" onClick={() => window.print()}>⌁ Print / PDF</button></div>}
       </header>
 
-      <div className="workspace">
+      {activeTab === "email" ? <div className="workspace">
         <aside className="editor-panel">
           <div className="panel-heading">
             <span className="eyebrow">Message details</span>
@@ -369,7 +555,7 @@ export default function Home() {
             </div>
           </article>
         </section>
-      </div>
+      </div> : <LabelEditor />}
     </main>
   );
 }
