@@ -24,6 +24,7 @@ type LabelField = "orderId" | "reason" | "isa" | "date";
 type LabelData = Record<LabelField, string>;
 type LabelPosition = { x: number; y: number; size: number };
 type LabelPositions = Record<LabelField, LabelPosition>;
+type LabelMask = { width: number; height: number; weight: number };
 
 const defaultTransforms: ImageTransforms = {
   avatar: { x: 0, y: 0, scale: 100 },
@@ -32,17 +33,24 @@ const defaultTransforms: ImageTransforms = {
 };
 
 const initialLabelData: LabelData = {
-  orderId: "Order ID 6836970794",
+  orderId: "ID 6836970794",
   reason: "two ISAs were deleted",
   isa: "132244007992",
   date: "2026/05/14 07:00 PDT.",
 };
 
 const initialLabelPositions: LabelPositions = {
-  orderId: { x: 23.4, y: 3.1, size: 27 },
-  reason: { x: 21.8, y: 46.3, size: 21 },
-  isa: { x: 11.1, y: 55.2, size: 21 },
-  date: { x: 41.6, y: 55.2, size: 21 },
+  orderId: { x: 23.2, y: 2.8, size: 27 },
+  reason: { x: 21.7, y: 46.0, size: 21 },
+  isa: { x: 10.8, y: 54.7, size: 21 },
+  date: { x: 41.4, y: 54.4, size: 21 },
+};
+
+const labelMasks: Record<LabelField, LabelMask> = {
+  orderId: { width: 12.7, height: 8.6, weight: 700 },
+  reason: { width: 14.6, height: 8.0, weight: 400 },
+  isa: { width: 10.5, height: 8.2, weight: 400 },
+  date: { width: 15.4, height: 8.6, weight: 400 },
 };
 
 const labelFieldNames: Record<LabelField, string> = {
@@ -127,7 +135,9 @@ function LabelEditor() {
     if (!cached) return;
     try {
       const draft = JSON.parse(cached);
-      setLabels({ ...initialLabelData, ...(draft.labels || {}) });
+      const savedLabels = { ...initialLabelData, ...(draft.labels || {}) } as LabelData;
+      savedLabels.orderId = savedLabels.orderId.replace(/^Order\s+/i, "");
+      setLabels(savedLabels);
       setPositions({ ...initialLabelPositions, ...(draft.positions || {}) });
     } catch {
       localStorage.removeItem("image-label-editor-draft");
@@ -180,17 +190,20 @@ function LabelEditor() {
       const scale = image.naturalWidth / 1600;
       (Object.keys(labels) as LabelField[]).forEach((key) => {
         const position = positions[key];
+        const mask = labelMasks[key];
         const x = (position.x / 100) * image.naturalWidth;
         const y = (position.y / 100) * image.naturalHeight;
         const fontSize = Math.max(10, Math.round(position.size * scale));
-        context.font = `500 ${fontSize}px Arial, sans-serif`;
+        const maskWidth = (mask.width / 100) * image.naturalWidth;
+        const maskHeight = (mask.height / 100) * image.naturalHeight;
+        context.font = `${mask.weight} ${fontSize}px Arial, sans-serif`;
         context.textBaseline = "top";
         const width = context.measureText(labels[key]).width;
         const padding = Math.max(3, Math.round(4 * scale));
         context.fillStyle = "#ffffff";
-        context.fillRect(x - padding, y - padding, width + padding * 2, fontSize * 1.35 + padding * 2);
+        context.fillRect(x, y, Math.max(maskWidth, width + padding * 2), maskHeight);
         context.fillStyle = "#30363d";
-        context.fillText(labels[key], x, y);
+        context.fillText(labels[key], x + padding, y + Math.max(0, (maskHeight - fontSize) / 2));
       });
       const link = document.createElement("a");
       link.download = "edited-label.png";
@@ -251,7 +264,14 @@ function LabelEditor() {
                 <span
                   className="label-overlay"
                   key={key}
-                  style={{ left: `${positions[key].x}%`, top: `${positions[key].y}%`, fontSize: `${positions[key].size}px` }}
+                  style={{
+                    left: `${positions[key].x}%`,
+                    top: `${positions[key].y}%`,
+                    minWidth: `${labelMasks[key].width}%`,
+                    height: `${labelMasks[key].height}%`,
+                    fontSize: `${positions[key].size}px`,
+                    fontWeight: labelMasks[key].weight,
+                  }}
                 >
                   {labels[key]}
                 </span>
