@@ -89,8 +89,13 @@ button { cursor: pointer; }
 .label-actions .button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
 .label-preview-area { display: flex; flex-direction: column; }
 .label-canvas { position: relative; width: 100%; max-width: 1120px; min-height: 560px; margin: 0 auto; overflow: auto; border: 1px solid #dce3de; background: #fff; box-shadow: 0 20px 55px rgba(37,56,45,.1); }
-.label-canvas.has-background { min-height: 0; overflow: hidden; }
-.label-canvas canvas { display: block; width: 100%; height: auto; }
+.label-canvas.has-background { min-height: 0; overflow: auto; }
+.label-canvas canvas { display: block; width: auto; max-width: none; height: auto; }
+.label-canvas.fit canvas { width: 100%; }
+.label-preview-tools { display: flex; align-items: center; gap: 6px; text-transform: none !important; letter-spacing: normal !important; }
+.label-preview-tools span { margin-right: 5px; color: #6b756f; font-size: 10px; font-weight: 500; }
+.label-preview-tools button { border: 1px solid #d8dfda; border-radius: 7px; padding: 4px 8px; background: #fff; color: #58645d; font: inherit; font-weight: 650; cursor: pointer; }
+.label-preview-tools button.active { border-color: #789965; background: #eef5e9; color: var(--green-dark); }
 .label-empty-state { min-height: 560px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--muted); text-align: center; }
 .label-empty-state b { color: #37443d; font-size: 18px; }
 .label-empty-state span { font-size: 13px; }
