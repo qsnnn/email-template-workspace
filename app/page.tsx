@@ -22,9 +22,17 @@ type ImageTransforms = Record<ImageTarget, ImageTransform>;
 
 type LabelField = "orderId" | "reason" | "isa" | "date";
 type LabelData = Record<LabelField, string>;
-type LabelPosition = { x: number; y: number; size: number };
-type LabelPositions = Record<LabelField, LabelPosition>;
-type LabelMask = { width: number; height: number; weight: number };
+type LabelRegion = {
+  eraseX: number;
+  eraseY: number;
+  eraseWidth: number;
+  eraseHeight: number;
+  textX: number;
+  baselineY: number;
+  fontSize: number;
+  weight: number;
+  color: string;
+};
 
 const defaultTransforms: ImageTransforms = {
   avatar: { x: 0, y: 0, scale: 100 },
@@ -39,18 +47,16 @@ const initialLabelData: LabelData = {
   date: "2026/05/14 07:00 PDT.",
 };
 
-const initialLabelPositions: LabelPositions = {
-  orderId: { x: 23.2, y: 2.8, size: 27 },
-  reason: { x: 21.7, y: 46.0, size: 21 },
-  isa: { x: 10.8, y: 54.7, size: 21 },
-  date: { x: 41.4, y: 54.4, size: 21 },
-};
+const LABEL_TEMPLATE_WIDTH = 1535;
+const LABEL_TEMPLATE_HEIGHT = 603;
 
-const labelMasks: Record<LabelField, LabelMask> = {
-  orderId: { width: 12.7, height: 8.6, weight: 700 },
-  reason: { width: 14.6, height: 8.0, weight: 400 },
-  isa: { width: 10.5, height: 8.2, weight: 400 },
-  date: { width: 15.4, height: 8.6, weight: 400 },
+// Exact pixel regions measured from the clean 1535 × 603 source image.
+// The narrow erase boxes intentionally leave the surrounding sentence untouched.
+const labelRegions: Record<LabelField, LabelRegion> = {
+  orderId: { eraseX: 363, eraseY: 10, eraseWidth: 174, eraseHeight: 27, textX: 366, baselineY: 34, fontSize: 24, weight: 700, color: "#38404b" },
+  reason: { eraseX: 340, eraseY: 277, eraseWidth: 200, eraseHeight: 20, textX: 343, baselineY: 294, fontSize: 20, weight: 400, color: "#31353b" },
+  isa: { eraseX: 179, eraseY: 332, eraseWidth: 137, eraseHeight: 23, textX: 182, baselineY: 353, fontSize: 20, weight: 400, color: "#31353b" },
+  date: { eraseX: 645, eraseY: 332, eraseWidth: 210, eraseHeight: 23, textX: 648, baselineY: 353, fontSize: 20, weight: 400, color: "#31353b" },
 };
 
 const labelFieldNames: Record<LabelField, string> = {
@@ -153,28 +159,27 @@ function LabelEditor() {
       const context = canvas.getContext("2d");
       if (!context) return;
       context.drawImage(image, 0, 0);
-      const scale = image.naturalWidth / 1600;
+      const scaleX = image.naturalWidth / LABEL_TEMPLATE_WIDTH;
+      const scaleY = image.naturalHeight / LABEL_TEMPLATE_HEIGHT;
+      const fontScale = Math.min(scaleX, scaleY);
 
       (Object.keys(labels) as LabelField[]).forEach((key) => {
-        const position = initialLabelPositions[key];
-        const mask = labelMasks[key];
-        const x = (position.x / 100) * image.naturalWidth;
-        const y = (position.y / 100) * image.naturalHeight;
-        const maskWidth = (mask.width / 100) * image.naturalWidth;
-        const maskHeight = (mask.height / 100) * image.naturalHeight;
-        const sampleX = Math.min(image.naturalWidth - 1, Math.max(0, Math.round(x + maskWidth / 2)));
-        const sampleY = Math.min(image.naturalHeight - 1, Math.max(0, Math.round(y - 8 * scale)));
+        const region = labelRegions[key];
+        const eraseX = region.eraseX * scaleX;
+        const eraseY = region.eraseY * scaleY;
+        const eraseWidth = region.eraseWidth * scaleX;
+        const eraseHeight = region.eraseHeight * scaleY;
+        const sampleX = Math.min(image.naturalWidth - 1, Math.max(0, Math.round(eraseX + eraseWidth / 2)));
+        const sampleY = Math.min(image.naturalHeight - 1, Math.max(0, Math.round(eraseY - 2 * scaleY)));
         const pixel = context.getImageData(sampleX, sampleY, 1, 1).data;
-        const erasePadding = Math.max(2, Math.round(4 * scale));
         context.fillStyle = `rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
-        context.fillRect(x - erasePadding, y - erasePadding, maskWidth + erasePadding * 2, maskHeight + erasePadding * 2);
+        context.fillRect(eraseX, eraseY, eraseWidth, eraseHeight);
 
-        const fontSize = Math.max(10, Math.round(position.size * scale));
-        const textPadding = Math.max(3, Math.round(6 * scale));
-        context.font = `${mask.weight} ${fontSize}px Arial, Helvetica, sans-serif`;
-        context.textBaseline = "middle";
-        context.fillStyle = "#30363d";
-        context.fillText(labels[key], x + textPadding, y + maskHeight / 2);
+        const fontSize = Math.max(10, region.fontSize * fontScale);
+        context.font = `${region.weight} ${fontSize}px "Segoe UI", Arial, sans-serif`;
+        context.textBaseline = "alphabetic";
+        context.fillStyle = region.color;
+        context.fillText(labels[key], region.textX * scaleX, region.baselineY * scaleY);
       });
     };
     image.src = background;
@@ -219,7 +224,7 @@ function LabelEditor() {
         <div className="panel-heading">
           <span className="eyebrow">Image label editor</span>
           <h1>修改图片文字</h1>
-          <p>上传底图后，程序会直接擦除红框和原文字，再把新内容写进图片。</p>
+          <p>上传无红框原图后，只替换四处原文字，周围内容和位置保持不变。</p>
         </div>
 
         <label className="background-upload">
@@ -255,7 +260,7 @@ function LabelEditor() {
           ) : (
             <div className="label-empty-state">
               <b>先上传你的图片</b>
-              <span>上传后，四处可编辑文字会显示在图片上。</span>
+              <span>请上传 1535 × 603 的无红框原图，四处文字会在原位直接替换。</span>
             </div>
           )}
         </div>
