@@ -83,19 +83,14 @@ button { cursor: pointer; }
 .background-upload > small { color: var(--muted); font-size: 10px; }
 .background-upload input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
 .label-field-list { display: grid; gap: 12px; }
-.label-field-card { border: 1px solid var(--line); border-radius: 11px; padding: 12px; background: #fbfcfb; }
-.label-adjustments { display: grid; gap: 7px; margin-top: 10px; }
-.label-adjustments label { display: grid; grid-template-columns: 42px 1fr; align-items: center; gap: 8px; }
-.label-adjustments span { color: var(--muted); font-size: 10px; }
-.label-adjustments input { width: 100%; accent-color: var(--green); }
+.label-simple-field { border: 1px solid var(--line); border-radius: 11px; padding: 12px; background: #fbfcfb; }
 .label-actions { position: sticky; bottom: 0; margin: 20px -28px -44px; padding: 14px 28px; border-top: 1px solid var(--line); background: rgba(255,255,255,.96); display: flex; gap: 8px; z-index: 2; }
 .label-actions .button { flex: 1; padding-inline: 8px; }
 .label-actions .button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
 .label-preview-area { display: flex; flex-direction: column; }
 .label-canvas { position: relative; width: 100%; max-width: 1120px; min-height: 560px; margin: 0 auto; overflow: auto; border: 1px solid #dce3de; background: #fff; box-shadow: 0 20px 55px rgba(37,56,45,.1); }
 .label-canvas.has-background { min-height: 0; overflow: hidden; }
-.label-canvas > img { display: block; width: 100%; height: auto; }
-.label-overlay { position: absolute; z-index: 1; display: flex; width: max-content; max-width: 60%; align-items: center; padding: 0 4px; overflow: visible; background: #fff; color: #30363d; font-family: Arial, Helvetica, sans-serif; line-height: 1.2; white-space: nowrap; }
+.label-canvas canvas { display: block; width: 100%; height: auto; }
 .label-empty-state { min-height: 560px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--muted); text-align: center; }
 .label-empty-state b { color: #37443d; font-size: 18px; }
 .label-empty-state span { font-size: 13px; }
@@ -157,7 +152,6 @@ button { cursor: pointer; }
   .preview-label > span { display: none; }
   .workspace-tabs button { flex: 1; padding-inline: 8px; }
   .label-actions { margin-inline: -18px; padding-inline: 18px; }
-  .label-overlay { max-width: 70%; padding: 1px 2px; }
 }
 
 @media print {

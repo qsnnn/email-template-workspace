@@ -127,8 +127,8 @@ function EditableText({
 function LabelEditor() {
   const [background, setBackground] = useState("");
   const [labels, setLabels] = useState<LabelData>(initialLabelData);
-  const [positions, setPositions] = useState<LabelPositions>(initialLabelPositions);
   const [saved, setSaved] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const cached = localStorage.getItem("image-label-editor-draft");
@@ -138,22 +138,50 @@ function LabelEditor() {
       const savedLabels = { ...initialLabelData, ...(draft.labels || {}) } as LabelData;
       savedLabels.orderId = savedLabels.orderId.replace(/^Order\s+/i, "");
       setLabels(savedLabels);
-      setPositions({ ...initialLabelPositions, ...(draft.positions || {}) });
     } catch {
       localStorage.removeItem("image-label-editor-draft");
     }
   }, []);
 
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !background) return;
+    const image = new window.Image();
+    image.onload = () => {
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      context.drawImage(image, 0, 0);
+      const scale = image.naturalWidth / 1600;
+
+      (Object.keys(labels) as LabelField[]).forEach((key) => {
+        const position = initialLabelPositions[key];
+        const mask = labelMasks[key];
+        const x = (position.x / 100) * image.naturalWidth;
+        const y = (position.y / 100) * image.naturalHeight;
+        const maskWidth = (mask.width / 100) * image.naturalWidth;
+        const maskHeight = (mask.height / 100) * image.naturalHeight;
+        const sampleX = Math.min(image.naturalWidth - 1, Math.max(0, Math.round(x + maskWidth / 2)));
+        const sampleY = Math.min(image.naturalHeight - 1, Math.max(0, Math.round(y - 8 * scale)));
+        const pixel = context.getImageData(sampleX, sampleY, 1, 1).data;
+        const erasePadding = Math.max(2, Math.round(4 * scale));
+        context.fillStyle = `rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
+        context.fillRect(x - erasePadding, y - erasePadding, maskWidth + erasePadding * 2, maskHeight + erasePadding * 2);
+
+        const fontSize = Math.max(10, Math.round(position.size * scale));
+        const textPadding = Math.max(3, Math.round(6 * scale));
+        context.font = `${mask.weight} ${fontSize}px Arial, Helvetica, sans-serif`;
+        context.textBaseline = "middle";
+        context.fillStyle = "#30363d";
+        context.fillText(labels[key], x + textPadding, y + maskHeight / 2);
+      });
+    };
+    image.src = background;
+  }, [background, labels]);
+
   const updateLabel = (key: LabelField, value: string) => {
     setLabels((current) => ({ ...current, [key]: value }));
-    setSaved(false);
-  };
-
-  const updatePosition = (key: LabelField, property: keyof LabelPosition, value: number) => {
-    setPositions((current) => ({
-      ...current,
-      [key]: { ...current[key], [property]: value },
-    }));
     setSaved(false);
   };
 
@@ -165,52 +193,24 @@ function LabelEditor() {
   };
 
   const saveLabelDraft = () => {
-    localStorage.setItem("image-label-editor-draft", JSON.stringify({ labels, positions }));
+    localStorage.setItem("image-label-editor-draft", JSON.stringify({ labels }));
     setSaved(true);
     window.setTimeout(() => setSaved(false), 1800);
   };
 
   const resetLabels = () => {
-    if (!window.confirm("恢复标签文字和位置的默认设置？")) return;
+    if (!window.confirm("恢复四处文字的默认内容？")) return;
     setLabels(initialLabelData);
-    setPositions(initialLabelPositions);
     localStorage.removeItem("image-label-editor-draft");
   };
 
   const downloadImage = () => {
-    if (!background) return;
-    const image = new window.Image();
-    image.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = image.naturalWidth;
-      canvas.height = image.naturalHeight;
-      const context = canvas.getContext("2d");
-      if (!context) return;
-      context.drawImage(image, 0, 0);
-      const scale = image.naturalWidth / 1600;
-      (Object.keys(labels) as LabelField[]).forEach((key) => {
-        const position = positions[key];
-        const mask = labelMasks[key];
-        const x = (position.x / 100) * image.naturalWidth;
-        const y = (position.y / 100) * image.naturalHeight;
-        const fontSize = Math.max(10, Math.round(position.size * scale));
-        const maskWidth = (mask.width / 100) * image.naturalWidth;
-        const maskHeight = (mask.height / 100) * image.naturalHeight;
-        context.font = `${mask.weight} ${fontSize}px Arial, sans-serif`;
-        context.textBaseline = "top";
-        const width = context.measureText(labels[key]).width;
-        const padding = Math.max(3, Math.round(4 * scale));
-        context.fillStyle = "#ffffff";
-        context.fillRect(x, y, Math.max(maskWidth, width + padding * 2), maskHeight);
-        context.fillStyle = "#30363d";
-        context.fillText(labels[key], x + padding, y + Math.max(0, (maskHeight - fontSize) / 2));
-      });
-      const link = document.createElement("a");
-      link.download = "edited-label.png";
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-    };
-    image.src = background;
+    const canvas = canvasRef.current;
+    if (!canvas || !background) return;
+    const link = document.createElement("a");
+    link.download = "edited-label.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
   };
 
   return (
@@ -219,7 +219,7 @@ function LabelEditor() {
         <div className="panel-heading">
           <span className="eyebrow">Image label editor</span>
           <h1>修改图片文字</h1>
-          <p>上传底图后，只需修改下面四处文字；位置和字号可按图片微调。</p>
+          <p>上传底图后，程序会直接擦除红框和原文字，再把新内容写进图片。</p>
         </div>
 
         <label className="background-upload">
@@ -230,17 +230,10 @@ function LabelEditor() {
 
         <div className="label-field-list">
           {(Object.keys(labels) as LabelField[]).map((key) => (
-            <section className="label-field-card" key={key}>
-              <label className="field">
-                <span>{labelFieldNames[key]}</span>
-                <input value={labels[key]} onChange={(event) => updateLabel(key, event.target.value)} />
-              </label>
-              <div className="label-adjustments">
-                <label><span>左右</span><input type="range" min="0" max="92" step="0.1" value={positions[key].x} onChange={(event) => updatePosition(key, "x", Number(event.target.value))} /></label>
-                <label><span>上下</span><input type="range" min="0" max="92" step="0.1" value={positions[key].y} onChange={(event) => updatePosition(key, "y", Number(event.target.value))} /></label>
-                <label><span>字号</span><input type="range" min="10" max="42" value={positions[key].size} onChange={(event) => updatePosition(key, "size", Number(event.target.value))} /></label>
-              </div>
-            </section>
+            <label className="field label-simple-field" key={key}>
+              <span>{labelFieldNames[key]}</span>
+              <input value={labels[key]} onChange={(event) => updateLabel(key, event.target.value)} />
+            </label>
           ))}
         </div>
 
@@ -258,25 +251,7 @@ function LabelEditor() {
         </div>
         <div className={`label-canvas ${background ? "has-background" : ""}`}>
           {background ? (
-            <>
-              <img src={background} alt="Uploaded label background" />
-              {(Object.keys(labels) as LabelField[]).map((key) => (
-                <span
-                  className="label-overlay"
-                  key={key}
-                  style={{
-                    left: `${positions[key].x}%`,
-                    top: `${positions[key].y}%`,
-                    minWidth: `${labelMasks[key].width}%`,
-                    height: `${labelMasks[key].height}%`,
-                    fontSize: `${positions[key].size}px`,
-                    fontWeight: labelMasks[key].weight,
-                  }}
-                >
-                  {labels[key]}
-                </span>
-              ))}
-            </>
+            <canvas ref={canvasRef} aria-label="Directly edited image preview" />
           ) : (
             <div className="label-empty-state">
               <b>先上传你的图片</b>
