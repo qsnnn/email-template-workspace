@@ -30,7 +30,9 @@ type LabelRegion = {
   textX: number;
   baselineY: number;
   fontSize: number;
+  fontFamily: string;
   weight: number;
+  letterSpacing: number;
   color: string;
 };
 
@@ -53,10 +55,10 @@ const LABEL_TEMPLATE_HEIGHT = 603;
 // Exact pixel regions measured from the clean 1535 × 603 source image.
 // The narrow erase boxes intentionally leave the surrounding sentence untouched.
 const labelRegions: Record<LabelField, LabelRegion> = {
-  orderId: { eraseX: 363, eraseY: 10, eraseWidth: 174, eraseHeight: 27, textX: 366, baselineY: 34, fontSize: 24, weight: 700, color: "#38404b" },
-  reason: { eraseX: 340, eraseY: 277, eraseWidth: 200, eraseHeight: 20, textX: 343, baselineY: 294, fontSize: 20, weight: 400, color: "#31353b" },
-  isa: { eraseX: 179, eraseY: 332, eraseWidth: 137, eraseHeight: 23, textX: 182, baselineY: 353, fontSize: 20, weight: 400, color: "#31353b" },
-  date: { eraseX: 645, eraseY: 332, eraseWidth: 210, eraseHeight: 23, textX: 648, baselineY: 353, fontSize: 20, weight: 400, color: "#31353b" },
+  orderId: { eraseX: 363, eraseY: 10, eraseWidth: 174, eraseHeight: 27, textX: 366, baselineY: 34, fontSize: 24, fontFamily: "Segoe UI", weight: 700, letterSpacing: 0, color: "#38404b" },
+  reason: { eraseX: 340, eraseY: 277, eraseWidth: 200, eraseHeight: 20, textX: 343, baselineY: 294, fontSize: 20, fontFamily: "Segoe UI", weight: 400, letterSpacing: 0, color: "#31353b" },
+  isa: { eraseX: 179, eraseY: 332, eraseWidth: 137, eraseHeight: 23, textX: 182, baselineY: 353, fontSize: 20, fontFamily: "Segoe UI", weight: 400, letterSpacing: 0.15, color: "#31353b" },
+  date: { eraseX: 645, eraseY: 332, eraseWidth: 210, eraseHeight: 23, textX: 648, baselineY: 353, fontSize: 20, fontFamily: "Segoe UI", weight: 400, letterSpacing: 0.15, color: "#31353b" },
 };
 
 const labelFieldNames: Record<LabelField, string> = {
@@ -176,7 +178,8 @@ function LabelEditor() {
         context.fillRect(eraseX, eraseY, eraseWidth, eraseHeight);
 
         const fontSize = Math.max(10, region.fontSize * fontScale);
-        context.font = `${region.weight} ${fontSize}px "Segoe UI", Arial, sans-serif`;
+        context.font = `${region.weight} ${fontSize}px "${region.fontFamily}", Arial, sans-serif`;
+        context.letterSpacing = `${region.letterSpacing * fontScale}px`;
         context.textBaseline = "alphabetic";
         context.fillStyle = region.color;
         context.fillText(labels[key], region.textX * scaleX, region.baselineY * scaleY);
