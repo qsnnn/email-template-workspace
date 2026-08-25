@@ -20,7 +20,7 @@ type ImageTarget = "avatar" | "logo" | "actions";
 type ImageTransform = { x: number; y: number; scale: number };
 type ImageTransforms = Record<ImageTarget, ImageTransform>;
 
-type LabelField = "orderId" | "reason" | "isa" | "date";
+type LabelField = "subjectLine" | "reasonLine" | "scheduleLine";
 type LabelData = Record<LabelField, string>;
 type LabelRegion = {
   eraseX: number;
@@ -43,29 +43,26 @@ const defaultTransforms: ImageTransforms = {
 };
 
 const initialLabelData: LabelData = {
-  orderId: "ID 6836970794",
-  reason: "two ISAs were deleted",
-  isa: "132244007992",
-  date: "2026/05/14 07:00 PDT.",
+  subjectLine: "RE:[CASE 20238273441] Order ID 6836970794",
+  reasonLine: "This load was not unloaded due to two ISAs were deleted",
+  scheduleLine: "The new ISA is  132244007992 which   Scheduled Processing Date is 2026/05/14 07:00 PDT.",
 };
 
 const LABEL_TEMPLATE_WIDTH = 1535;
 const LABEL_TEMPLATE_HEIGHT = 603;
 
 // Exact pixel regions measured from the clean 1535 × 603 source image.
-// The narrow erase boxes intentionally leave the surrounding sentence untouched.
+// Each highlighted line is redrawn as one unit so its typography stays consistent.
 const labelRegions: Record<LabelField, LabelRegion> = {
-  orderId: { eraseX: 363, eraseY: 10, eraseWidth: 174, eraseHeight: 27, textX: 366, baselineY: 31, fontSize: 24.7, fontFamily: "Arial", weight: 700, letterSpacing: 0, color: "#38404b" },
-  reason: { eraseX: 340, eraseY: 277, eraseWidth: 200, eraseHeight: 20, textX: 343, baselineY: 294, fontSize: 20, fontFamily: "Segoe UI", weight: 400, letterSpacing: 0, color: "#31353b" },
-  isa: { eraseX: 179, eraseY: 332, eraseWidth: 137, eraseHeight: 23, textX: 182, baselineY: 350, fontSize: 20, fontFamily: "Segoe UI", weight: 400, letterSpacing: 0.15, color: "#31353b" },
-  date: { eraseX: 645, eraseY: 332, eraseWidth: 210, eraseHeight: 23, textX: 648, baselineY: 350, fontSize: 20, fontFamily: "Segoe UI", weight: 400, letterSpacing: 0.15, color: "#31353b" },
+  subjectLine: { eraseX: 14, eraseY: 10, eraseWidth: 524, eraseHeight: 27, textX: 17, baselineY: 31, fontSize: 24, fontFamily: "Segoe UI", weight: 700, letterSpacing: 0, color: "#38404b" },
+  reasonLine: { eraseX: 32, eraseY: 277, eraseWidth: 509, eraseHeight: 20, textX: 35, baselineY: 294, fontSize: 20, fontFamily: "Segoe UI", weight: 400, letterSpacing: -0.05, color: "#31353b" },
+  scheduleLine: { eraseX: 32, eraseY: 332, eraseWidth: 823, eraseHeight: 23, textX: 35, baselineY: 350, fontSize: 20, fontFamily: "Segoe UI", weight: 400, letterSpacing: 0.15, color: "#31353b" },
 };
 
 const labelFieldNames: Record<LabelField, string> = {
-  orderId: "顶部 Order ID",
-  reason: "原因英文",
-  isa: "ISA 编号",
-  date: "日期和时间",
+  subjectLine: "完整标题",
+  reasonLine: "完整原因句",
+  scheduleLine: "完整 ISA / 日期句",
 };
 
 const initialEmail: EmailData = {
@@ -144,9 +141,12 @@ function LabelEditor() {
     if (!cached) return;
     try {
       const draft = JSON.parse(cached);
-      const savedLabels = { ...initialLabelData, ...(draft.labels || {}) } as LabelData;
-      savedLabels.orderId = savedLabels.orderId.replace(/^Order\s+/i, "");
-      setLabels(savedLabels);
+      const savedLabels = draft.labels || {};
+      setLabels({
+        subjectLine: savedLabels.subjectLine || initialLabelData.subjectLine,
+        reasonLine: savedLabels.reasonLine || initialLabelData.reasonLine,
+        scheduleLine: savedLabels.scheduleLine || initialLabelData.scheduleLine,
+      });
     } catch {
       localStorage.removeItem("image-label-editor-draft");
     }
@@ -208,7 +208,7 @@ function LabelEditor() {
   };
 
   const resetLabels = () => {
-    if (!window.confirm("恢复四处文字的默认内容？")) return;
+    if (!window.confirm("恢复三条文字的默认内容？")) return;
     setLabels(initialLabelData);
     localStorage.removeItem("image-label-editor-draft");
   };
@@ -228,7 +228,7 @@ function LabelEditor() {
         <div className="panel-heading">
           <span className="eyebrow">Image label editor</span>
           <h1>修改图片文字</h1>
-          <p>上传无红框原图后，只替换四处原文字，周围内容和位置保持不变。</p>
+          <p>上传无红框原图后，可直接修改三条完整文字，其他内容保持不变。</p>
         </div>
 
         <label className="background-upload">
@@ -268,7 +268,7 @@ function LabelEditor() {
           ) : (
             <div className="label-empty-state">
               <b>先上传你的图片</b>
-              <span>请上传 1535 × 603 的无红框原图，四处文字会在原位直接替换。</span>
+              <span>请上传 1535 × 603 的无红框原图，三条文字会在原位直接替换。</span>
             </div>
           )}
         </div>
