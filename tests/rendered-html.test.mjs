@@ -34,6 +34,7 @@ test("server-renders the email workspace shell", async () => {
   assert.match(html, /标签编辑/);
   assert.match(html, /修改图片文字/);
   assert.match(html, /完整标题/);
+  assert.match(html, /发送时间/);
   assert.match(html, /完整原因句/);
   assert.match(html, /完整 ISA \/ 日期句/);
   assert.match(html, /底部签名整段/);
