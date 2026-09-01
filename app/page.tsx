@@ -20,7 +20,7 @@ type ImageTarget = "avatar" | "logo" | "actions";
 type ImageTransform = { x: number; y: number; scale: number };
 type ImageTransforms = Record<ImageTarget, ImageTransform>;
 
-type LabelField = "subjectLine" | "reasonLine" | "scheduleLine";
+type LabelField = "subjectLine" | "reasonLine" | "scheduleLine" | "signatureBlock";
 type LabelData = Record<LabelField, string>;
 type LabelRegion = {
   eraseX: number;
@@ -34,6 +34,7 @@ type LabelRegion = {
   weight: number;
   letterSpacing: number;
   color: string;
+  lineHeight?: number;
 };
 
 const defaultTransforms: ImageTransforms = {
@@ -46,6 +47,8 @@ const initialLabelData: LabelData = {
   subjectLine: "RE:[CASE 20238273441] Order ID 6836970794",
   reasonLine: "This load was not unloaded due to two ISAs were deleted",
   scheduleLine: "The new ISA is  132244007992 which   Scheduled Processing Date is 2026/05/14 07:00 PDT.",
+  signatureBlock:
+    "We apologized the inconvenient caused by that.\n\nBest regards,\n\nLihua T.\nAFE Shipper Support\nShipper Hotline 1.877.458.8453",
 };
 
 const LABEL_TEMPLATE_WIDTH = 1535;
@@ -57,12 +60,14 @@ const labelRegions: Record<LabelField, LabelRegion> = {
   subjectLine: { eraseX: 14, eraseY: 10, eraseWidth: 524, eraseHeight: 27, textX: 17, baselineY: 31, fontSize: 24, fontFamily: "Segoe UI", weight: 700, letterSpacing: 0, color: "#38404b" },
   reasonLine: { eraseX: 32, eraseY: 277, eraseWidth: 509, eraseHeight: 20, textX: 35, baselineY: 294, fontSize: 20, fontFamily: "Segoe UI", weight: 400, letterSpacing: -0.05, color: "#31353b" },
   scheduleLine: { eraseX: 32, eraseY: 332, eraseWidth: 823, eraseHeight: 23, textX: 35, baselineY: 350, fontSize: 20, fontFamily: "Segoe UI", weight: 400, letterSpacing: 0.15, color: "#31353b" },
+  signatureBlock: { eraseX: 30, eraseY: 384, eraseWidth: 505, eraseHeight: 205, textX: 35, baselineY: 407, fontSize: 20, fontFamily: "Segoe UI", weight: 400, letterSpacing: 0, color: "#31353b", lineHeight: 27.5 },
 };
 
 const labelFieldNames: Record<LabelField, string> = {
   subjectLine: "完整标题",
   reasonLine: "完整原因句",
   scheduleLine: "完整 ISA / 日期句",
+  signatureBlock: "底部签名整段",
 };
 
 const initialEmail: EmailData = {
@@ -146,6 +151,7 @@ function LabelEditor() {
         subjectLine: savedLabels.subjectLine || initialLabelData.subjectLine,
         reasonLine: savedLabels.reasonLine || initialLabelData.reasonLine,
         scheduleLine: savedLabels.scheduleLine || initialLabelData.scheduleLine,
+        signatureBlock: savedLabels.signatureBlock || initialLabelData.signatureBlock,
       });
     } catch {
       localStorage.removeItem("image-label-editor-draft");
@@ -183,7 +189,10 @@ function LabelEditor() {
         context.letterSpacing = `${region.letterSpacing * fontScale}px`;
         context.textBaseline = "alphabetic";
         context.fillStyle = region.color;
-        context.fillText(labels[key], region.textX * scaleX, region.baselineY * scaleY);
+        const lineHeight = (region.lineHeight ?? region.fontSize * 1.45) * fontScale;
+        labels[key].split(/\r?\n/).forEach((line, index) => {
+          context.fillText(line, region.textX * scaleX, region.baselineY * scaleY + index * lineHeight);
+        });
       });
     };
     image.src = background;
@@ -241,7 +250,15 @@ function LabelEditor() {
           {(Object.keys(labels) as LabelField[]).map((key) => (
             <label className="field label-simple-field" key={key}>
               <span>{labelFieldNames[key]}</span>
-              <input value={labels[key]} onChange={(event) => updateLabel(key, event.target.value)} />
+              {key === "signatureBlock" ? (
+                <textarea
+                  rows={7}
+                  value={labels[key]}
+                  onChange={(event) => updateLabel(key, event.target.value)}
+                />
+              ) : (
+                <input value={labels[key]} onChange={(event) => updateLabel(key, event.target.value)} />
+              )}
             </label>
           ))}
         </div>
@@ -278,7 +295,7 @@ function LabelEditor() {
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"email" | "label">("email");
+  const [activeTab, setActiveTab] = useState<"email" | "label">("label");
   const [email, setEmail] = useState<EmailData>(initialEmail);
   const [avatarImage, setAvatarImage] = useState("");
   const [logoImage, setLogoImage] = useState("");
